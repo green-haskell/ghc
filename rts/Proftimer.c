@@ -13,6 +13,8 @@
 #include "Proftimer.h"
 #include "Capability.h"
 
+#include "rapl-read2.h"
+
 #ifdef PROFILING
 static rtsBool do_prof_ticks = rtsFalse;       // enable profiling ticks
 #endif
@@ -64,6 +66,8 @@ initProfTimer( void )
     ticks_to_heap_profile = RtsFlags.ProfFlags.heapProfileIntervalTicks;
 
     startHeapProfTimer();
+
+    init_rapl_read();
 }
 
 nat total_ticks = 0;
@@ -77,6 +81,7 @@ handleProfTick(void)
         nat n;
         for (n=0; n < n_capabilities; n++) {
             capabilities[n]->r.rCCCS->time_ticks++;
+            printf("Package energy: %.6fJ\n", get_package_energy());
         }
     }
 #endif
