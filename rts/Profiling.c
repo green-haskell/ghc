@@ -611,6 +611,7 @@ actualPush_ (CostCentreStack *ccs, CostCentre *cc, CostCentreStack *new_ccs)
      * that's easily used elsewhere too
      */
     new_ccs->time_ticks = 0;
+    new_ccs->e_counter = 0;
     new_ccs->mem_alloc = 0;
     new_ccs->inherited_ticks = 0;
     new_ccs->inherited_alloc = 0;
@@ -751,6 +752,7 @@ strlen_utf8 (char *s)
 static void
 reportPerCCCosts( void )
 {
+    printf("--> reportPerCCCosts()\n");
     CostCentre *cc, *next;
     nat max_label_len, max_module_len;
 

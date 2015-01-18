@@ -13,8 +13,11 @@
 #include "Proftimer.h"
 #include "Capability.h"
 
+ #include "rapl-read2.h"
+
 #ifdef PROFILING
 static rtsBool do_prof_ticks = rtsFalse;       // enable profiling ticks
+static CostCentreStack *previous_ccs[10];
 #endif
 
 static rtsBool do_heap_prof_ticks = rtsFalse;  // enable heap profiling ticks
@@ -64,9 +67,12 @@ initProfTimer( void )
     ticks_to_heap_profile = RtsFlags.ProfFlags.heapProfileIntervalTicks;
 
     startHeapProfTimer();
+
+    init_rapl_read();
 }
 
 nat total_ticks = 0;
+StgDouble last_energy = 0.0;
 
 void
 handleProfTick(void)
@@ -74,9 +80,25 @@ handleProfTick(void)
 #ifdef PROFILING
     total_ticks++;
     if (do_prof_ticks) {
+        StgDouble current_energy = get_package_energy();
+        StgDouble e_diff = total_ticks == 1 ? 0 : current_energy - last_energy;
+        last_energy = current_energy;
+
         nat n;
+        CostCentreStack *ccs, *prev_ccs;
         for (n=0; n < n_capabilities; n++) {
-            capabilities[n]->r.rCCCS->time_ticks++;
+            ccs = capabilities[n]->r.rCCCS;
+            ccs->time_ticks++;
+
+            // There is no previous cost centre in the first tick
+            if (total_ticks == 1) {
+                previous_ccs[n] = ccs;
+                continue;
+            }
+
+            prev_ccs = previous_ccs[n];
+            prev_ccs->e_counter += e_diff;
+            previous_ccs[n] = ccs;
         }
     }
 #endif
