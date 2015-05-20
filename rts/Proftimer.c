@@ -13,10 +13,17 @@
 #include "Proftimer.h"
 #include "Capability.h"
 
- #include "rapl-read2.h"
+//#include "rapl-read2.h"
+#include "rapl.h"
 
 #ifdef PROFILING
 static rtsBool do_prof_ticks = rtsFalse;       // enable profiling ticks
+
+static struct rapl_units runits;
+static int fd_msr;
+static struct rapl_raw_power_counters start, stop;
+static struct rapl_power_diff pd;
+
 static CostCentreStack *previous_ccs[10];
 #endif
 
@@ -68,7 +75,13 @@ initProfTimer( void )
 
     startHeapProfTimer();
 
-    init_rapl_read();
+    //init_rapl_read();
+
+#ifdef PROFILING
+    fd_msr = rapl_open_msr(0);
+    rapl_get_units(fd_msr, &runits);
+    rapl_get_raw_power_counters(fd_msr, &runits, &start);
+#endif
 }
 
 nat total_ticks = 0;
@@ -80,9 +93,25 @@ handleProfTick(void)
 #ifdef PROFILING
     total_ticks++;
     if (do_prof_ticks) {
-        StgDouble current_energy = get_package_energy();
-        StgDouble e_diff = total_ticks == 1 ? 0 : current_energy - last_energy;
-        last_energy = current_energy;
+        rapl_get_raw_power_counters(fd_msr, &runits, &stop);
+        rapl_get_power_diff(&start, &stop, &pd);
+        start = stop;
+
+        StgDouble e_diff = 0.0;
+
+        if (pd.pkg > -1)
+            e_diff += pd.pkg;
+        /*if (pd.cpu > -1)
+            printf("CPU: %f J\n", pd.cpu);
+        if (pd.gpu > -1)
+            printf("GPU: %f J\n", pd.gpu);
+        if (pd.dram > -1)
+            e_diff += pd.dram;
+        if (pd.uncore > -1)
+            e_diff += pd.uncore;*/
+
+        double time = ((double) total_ticks * RtsFlags.MiscFlags.tickInterval) / (TIME_RESOLUTION * n_capabilities);
+        printf("raw: %.4f  --  diff: %.4f  --  time: %.4fs\n", stop.pkd, pd.pkg, time);
 
         nat n;
         CostCentreStack *ccs, *prev_ccs;
